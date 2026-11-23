@@ -1,5 +1,4 @@
 {
-  "_note": "Bundled Monroe encoder config. Only the 'encoder' block is read at inference; 'pretrain' records the training settings for provenance.",
   "encoder": {
     "hidden_dim": 720,
     "num_layers": 10,

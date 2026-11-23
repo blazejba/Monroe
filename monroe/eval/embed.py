@@ -7,7 +7,7 @@ pool; the encoder forward pass is a batched GPU call on top.
     from monroe.model.ckpt import load_ckpt
     from monroe.eval.embed import embed_smiles
 
-    encoder = load_ckpt("checkpoint")
+    encoder = load_ckpt()
     embeddings = embed_smiles(["CCO", "c1ccccc1"], encoder)
 """
 

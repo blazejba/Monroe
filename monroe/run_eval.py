@@ -7,6 +7,7 @@ from pathlib import Path
 import torch
 
 from monroe.analysis.leaderboard import compute_mean_rank
+from monroe.checkpoints import add_checkpoint_arguments, resolve_checkpoint
 from monroe.eval import moleculeace, polaris
 from monroe.eval.tabpfn import default_ensemble_specs
 from monroe.model.ckpt import _resolve_ckpt_dir, load_ckpt
@@ -211,12 +212,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Evaluate checkpoint on the MoleculeACE and Polaris benchmarks"
     )
-    parser.add_argument(
-        "--ckpt-path",
-        type=str,
-        required=True,
-        help="Path to a checkpoint directory or experiment root (evaluates all checkpoints)",
-    )
+    add_checkpoint_arguments(parser)
     parser.add_argument(
         "--num-seeds",
         type=int,
@@ -268,7 +264,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     printf(f"Using device: {device}")
 
-    ckpt_dir = _resolve_ckpt_dir(Path(args.ckpt_path))
+    ckpt_dir = _resolve_ckpt_dir(resolve_checkpoint(args.ckpt_path, model=args.model))
     if not (ckpt_dir / "config.json").exists():
         printf(f"No checkpoint (config.json) found at {ckpt_dir}")
         return

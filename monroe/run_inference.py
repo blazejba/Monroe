@@ -15,20 +15,15 @@ from a Polaris benchmark, which requires the [eval] extra.
 """
 import argparse
 import sys
-from pathlib import Path
 
 import datamol as dm
 import numpy as np
 import torch
 from torch_geometric.data import Data
 
+from monroe.checkpoints import add_checkpoint_arguments
 from monroe.model.ckpt import load_ckpt
 from monroe.model.featurizer import build_single_graph
-
-# Bundled model shipped with the repository in checkpoint/ (Git LFS) — a normal
-# checkpoint directory (config.json + weights.pt). run_inference.py lives in
-# monroe/, so parents[1] is the repo root.
-CHECKPOINT_DIR = Path(__file__).resolve().parents[1] / "checkpoint"
 
 
 def is_flat(pos: np.ndarray) -> bool:
@@ -39,22 +34,14 @@ def is_flat(pos: np.ndarray) -> bool:
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--ckpt-path", default=None,
-                        help="Checkpoint directory (config.json + weights.pt). "
-                             "Defaults to the bundled model in checkpoint/.")
+    add_checkpoint_arguments(parser)
     parser.add_argument("--smiles", default=None,
                         help="Molecule to embed. Defaults to one from a Polaris benchmark.")
     parser.add_argument("--use-ema", action="store_true",
                         help="Load ema_weights.pt instead of weights.pt.")
     args = parser.parse_args()
 
-    ckpt_path = args.ckpt_path if args.ckpt_path is not None else str(CHECKPOINT_DIR)
-    if args.ckpt_path is None and not (CHECKPOINT_DIR / "config.json").exists():
-        sys.exit(
-            f"No --ckpt-path given and no bundled model at {CHECKPOINT_DIR}.\n"
-            "Pass --ckpt-path <checkpoint dir>, or fetch the release weights (git lfs pull)."
-        )
-    encoder = load_ckpt(ckpt_path, use_ema=args.use_ema)
+    encoder = load_ckpt(args.ckpt_path, use_ema=args.use_ema, model=args.model)
     encoder.eval()
 
     smi = args.smiles
