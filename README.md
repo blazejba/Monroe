@@ -58,6 +58,11 @@ python monroe/run_inference.py --smiles "CC(=O)Oc1ccccc1C(=O)O"
 This prints a 720-d graph-level embedding. `load_ckpt` restores the **encoder only**,
 so a forward pass gives you a fingerprint rather than task predictions. 
 
+Conformer generation uses seed 42 by default. To vary it, pass
+`conformer_seed=123` to `embed_smiles` or `featurize_smiles`, or use
+`--conformer-seed 123` with inference or graph preprocessing. Preprocessing
+reuses cached graphs; use a fresh `--output-path` when generating another seed.
+
 ## Evaluation
 
 Monroe is evaluated by freezing the encoder and embedding each molecule. The default

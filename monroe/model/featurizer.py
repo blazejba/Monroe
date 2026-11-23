@@ -23,6 +23,7 @@ RDLogger.logger().setLevel(RDLogger.CRITICAL)
 rdBase.DisableLog("rdApp.warning")
 
 ptable = Chem.GetPeriodicTable()
+DEFAULT_CONFORMER_SEED = 42
 
 
 def encode_code(
@@ -375,8 +376,12 @@ def build_from_mol_and_coords(
     )
 
 
-def predict_structure(mol: Chem.Mol, n_confs: int = 1) -> Chem.Conformer:
+def predict_structure(
+    mol: Chem.Mol, n_confs: int = 1, *, conformer_seed: int = DEFAULT_CONFORMER_SEED,
+) -> Chem.Conformer:
     params = getattr(rdDistGeom, "ETKDGv3")()
+    # Seed each molecule independently of worker scheduling and previous calls.
+    params.randomSeed = conformer_seed
     params.enforceChirality = True
     params.useRandomCoords = True
     params.numThreads = 1
@@ -419,6 +424,8 @@ def build_single_graph(
     stereo_augmentation: Optional[bool] = True,
     allow_2d_fallback_on_timeout: bool = False,
     symmetrize: bool = False,
+    *,
+    conformer_seed: int = DEFAULT_CONFORMER_SEED,
 ) -> Dict[str, np.ndarray]:
 
     # inference time: build from InChi
@@ -441,7 +448,7 @@ def build_single_graph(
             raise ValueError(f"Skipping - failed to determine bonds for {inchi}")
 
     try: # use ETKDG + MMFF94
-        conf = predict_structure(mol)
+        conf = predict_structure(mol, conformer_seed=conformer_seed)
         pos_rdkit = np.asarray(conf.GetPositions(), dtype=np.float32)
     except Exception as exc:
         if isinstance(exc, TimeoutError) and not allow_2d_fallback_on_timeout:

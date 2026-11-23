@@ -21,7 +21,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from tqdm import tqdm
 
-from monroe.model.featurizer import build_from_mol_and_coords, build_single_graph
+from monroe.model.featurizer import DEFAULT_CONFORMER_SEED, build_from_mol_and_coords, build_single_graph
 
 
 def get_all_smiles(benchmark: str) -> list[str]:
@@ -71,7 +71,9 @@ def reuse_cached_graphs(
     return all_graphs
 
 
-def _build_from_smiles_fallback(smi: str) -> dict[str, np.ndarray] | None:
+def _build_from_smiles_fallback(
+    smi: str, *, conformer_seed: int = DEFAULT_CONFORMER_SEED,
+) -> dict[str, np.ndarray] | None:
     """Build molecular graph directly from SMILES, bypassing InChI round-trip.
 
     Used as a fallback when build_single_graph fails (e.g., metal-oxygen bonds
@@ -86,7 +88,7 @@ def _build_from_smiles_fallback(smi: str) -> dict[str, np.ndarray] | None:
         # Try 3D embedding
         try:
             from monroe.model.featurizer import predict_structure
-            conf = predict_structure(mol)
+            conf = predict_structure(mol, conformer_seed=conformer_seed)
             pos_rdkit = np.asarray(conf.GetPositions(), dtype=np.float32)
         except Exception:
             AllChem.Compute2DCoords(mol)
@@ -98,7 +100,9 @@ def _build_from_smiles_fallback(smi: str) -> dict[str, np.ndarray] | None:
         return None
 
 
-def build_mol(smi: str) -> dict[str, np.ndarray] | None:
+def build_mol(
+    smi: str, *, conformer_seed: int = DEFAULT_CONFORMER_SEED,
+) -> dict[str, np.ndarray] | None:
     """Build molecular graph from SMILES."""
     try:
         tqdm.write(f"[info] Building molecule graph for {smi[:50]}...")
@@ -142,6 +146,7 @@ def build_mol(smi: str) -> dict[str, np.ndarray] | None:
                 stereo_augmentation=True,
                 allow_2d_fallback_on_timeout=True,
                 symmetrize=True,
+                conformer_seed=conformer_seed,
             )
         finally:
             if hasattr(signal, "SIGALRM"):
@@ -153,11 +158,11 @@ def build_mol(smi: str) -> dict[str, np.ndarray] | None:
         # rebuild directly from SMILES which preserves the original bond information
         if mol_graph is not None and mol_graph["edge_index"].shape[1] == 0:
             tqdm.write(f"[warn] InChI round-trip lost bonds for {smi[:50]}, trying SMILES fallback")
-            mol_graph = _build_from_smiles_fallback(smi)
+            mol_graph = _build_from_smiles_fallback(smi, conformer_seed=conformer_seed)
 
     except Exception as exc:
         tqdm.write(f"[warn] Failed to build graph for {smi}: {exc}")
-        mol_graph = _build_from_smiles_fallback(smi)
+        mol_graph = _build_from_smiles_fallback(smi, conformer_seed=conformer_seed)
     return mol_graph
 
 
@@ -236,6 +241,10 @@ def main():
         type=str,
         default="data/eval_graphs",
         help="Output directory for the molecule graphs",
+    )
+    parser.add_argument(
+        "--conformer-seed", type=int, default=DEFAULT_CONFORMER_SEED,
+        help="RDKit seed for newly generated conformers (default: %(default)s).",
     )
     parser.add_argument(
         "--use-sdf",
@@ -322,7 +331,7 @@ def main():
                 mol_graph = build_mol_from_sdf(mol_list)
 
             if mol_graph is None:
-                mol_graph = build_mol(smi)
+                mol_graph = build_mol(smi, conformer_seed=args.conformer_seed)
             all_graphs_subset[smi] = mol_graph
     else:
         print("No molecules to build.")
