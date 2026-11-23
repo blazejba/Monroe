@@ -14,37 +14,47 @@ pool; the encoder forward pass is a batched GPU call on top.
 import multiprocessing as mp
 import os
 from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 
 import numpy as np
 import torch
 from torch_geometric.data import Batch, Data
 
+from monroe.model.featurizer import DEFAULT_CONFORMER_SEED
 from monroe.preprocessing import build_eval_graphs as _graphs
 
 
-def _featurize_one(smiles: str) -> tuple[str, dict] | None:
+def _featurize_one(
+    smiles: str, *, conformer_seed: int = DEFAULT_CONFORMER_SEED,
+) -> tuple[str, dict] | None:
     """Graph for one molecule, or None if it cannot be built."""
     try:
-        graph = _graphs.build_mol(smiles)
+        graph = _graphs.build_mol(smiles, conformer_seed=conformer_seed)
         if graph is None:
-            graph = _graphs._build_from_smiles_fallback(smiles)
+            graph = _graphs._build_from_smiles_fallback(smiles, conformer_seed=conformer_seed)
     except Exception:
         try:
-            graph = _graphs._build_from_smiles_fallback(smiles)
+            graph = _graphs._build_from_smiles_fallback(smiles, conformer_seed=conformer_seed)
         except Exception:
             return None
     return (smiles, graph) if graph is not None else None
 
 
-def featurize_smiles(smiles: list[str], n_workers: int | None = None) -> list[tuple[str, dict]]:
-    """Build graphs for many molecules in parallel, skipping the ones that fail."""
+def featurize_smiles(
+    smiles: list[str], n_workers: int | None = None, *, conformer_seed: int = DEFAULT_CONFORMER_SEED,
+) -> list[tuple[str, dict]]:
+    """Build graphs in parallel, using the same conformer seed for each molecule.
+
+    Molecules that cannot be featurized are skipped.
+    """
     n_workers = n_workers or len(os.sched_getaffinity(0))
     original_write = _graphs.tqdm.write
     _graphs.tqdm.write = lambda *args, **kwargs: None  # one line per molecule is too noisy
     try:
         with ProcessPoolExecutor(max_workers=n_workers,
                                  mp_context=mp.get_context("fork")) as pool:
-            built = pool.map(_featurize_one, smiles, chunksize=8)
+            worker = partial(_featurize_one, conformer_seed=conformer_seed)
+            built = pool.map(worker, smiles, chunksize=8)
             return [graph for graph in built if graph is not None]
     finally:
         _graphs.tqdm.write = original_write
@@ -67,17 +77,20 @@ def embed_smiles(
     device: torch.device | str | None = None,
     batch_size: int = 32,
     n_workers: int | None = None,
+    *,
+    conformer_seed: int = DEFAULT_CONFORMER_SEED,
 ) -> dict[str, np.ndarray]:
     """SMILES -> {smiles: graph-level embedding}.
 
     Molecules the featurizer cannot handle are left out of the returned dict, so
     always look up by SMILES rather than assuming the input order is preserved.
+    Change ``conformer_seed`` to deliberately generate different conformers.
     """
     if device is None:
         device = next(encoder.parameters()).device
     encoder = encoder.to(device).eval()
 
-    built = featurize_smiles(smiles, n_workers=n_workers)
+    built = featurize_smiles(smiles, n_workers=n_workers, conformer_seed=conformer_seed)
     if not built:
         return {}
 

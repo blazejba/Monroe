@@ -23,7 +23,7 @@ from torch_geometric.data import Data
 
 from monroe.checkpoints import add_checkpoint_arguments
 from monroe.model.ckpt import load_ckpt
-from monroe.model.featurizer import build_single_graph
+from monroe.model.featurizer import DEFAULT_CONFORMER_SEED, build_single_graph
 
 
 def is_flat(pos: np.ndarray) -> bool:
@@ -39,6 +39,8 @@ def main():
                         help="Molecule to embed. Defaults to one from a Polaris benchmark.")
     parser.add_argument("--use-ema", action="store_true",
                         help="Load ema_weights.pt instead of weights.pt.")
+    parser.add_argument("--conformer-seed", type=int, default=DEFAULT_CONFORMER_SEED,
+                        help="RDKit conformer seed (default: %(default)s).")
     args = parser.parse_args()
 
     encoder = load_ckpt(args.ckpt_path, use_ema=args.use_ema, model=args.model)
@@ -58,7 +60,7 @@ def main():
     # Coordinates come from RDKit (ETKDG + MMFF94s, falling back to UFF). Monroe
     # is trained to work from these rather than needing the PM6-optimised geometry.
     try:
-        graph_dict = build_single_graph(inchi=inchi, symmetrize=True)
+        graph_dict = build_single_graph(inchi=inchi, symmetrize=True, conformer_seed=args.conformer_seed)
     except ValueError as exc:
         sys.exit(f"Could not featurize {smi!r}: {exc}")
 
