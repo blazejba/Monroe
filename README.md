@@ -401,12 +401,43 @@ comparison figure reproduces as:
 
 ## Pretrained model
 
-The released encoder ships in `checkpoint/` via [Git LFS](https://git-lfs.com):
+The released encoders ship in `checkpoints/` via [Git LFS](https://git-lfs.com).
+The default model is the original released Monroe. The optional `no_decorr`
+model is the no-decorrelation ablation.
 
 | File | Contents |
 |------|----------|
-| `checkpoint/weights.pt` | Monroe encoder weights (~300 MB, LFS) |
-| `checkpoint/config.json` | Architecture config the loader reads |
+| `checkpoints/default/` | Original released Monroe |
+| `checkpoints/no_decorr/` | Monroe trained without embedding decorrelation |
+
+Each directory contains `config.json` and `weights.pt` (~300 MB, LFS).
+The bundled weights already use EMA; omit `--use-ema` for these models.
+
+```bash
+python -m monroe.run_inference                     # original released model
+python -m monroe.run_inference --model no_decorr
+python -m monroe.run_eval --model no_decorr
+```
+
+In Python:
+
+```python
+from monroe import load_ckpt
+
+encoder = load_ckpt()                             # original released model
+encoder = load_ckpt(model="no_decorr")
+```
+
+Custom checkpoints still work with `load_ckpt("/path/to/checkpoint")` or
+`--ckpt-path /path/to/checkpoint`. Choose either `--model` or `--ckpt-path`.
+
+To fetch just one model's weights after cloning without LFS downloads:
+
+```bash
+git lfs pull --include="checkpoints/default/weights.pt"
+# Or fetch the alternative:
+git lfs pull --include="checkpoints/no_decorr/weights.pt"
+```
 
 ## Citation
 

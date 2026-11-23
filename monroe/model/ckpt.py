@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import torch
 
 import wandb
+from monroe.checkpoints import resolve_checkpoint
 from monroe.config import to_dict
 from monroe.model.constants import (
     EDGE_FEAT_LIST_ONE_HOT,
@@ -85,14 +86,16 @@ def _build_encoder(hp_dict: dict) -> GritTransformer:
     )
 
 
-def load_ckpt(path: str, use_ema: bool = False):
+def load_ckpt(path: str | Path | None = None, use_ema: bool = False, *, model: str | None = None):
     """Load a checkpoint for inference (encoder only).
 
     ``path`` is a checkpoint directory containing ``config.json`` plus
     ``weights.pt`` (or ``ema_weights.pt`` when ``use_ema=True``) — the
-    training-output layout, which the bundled model in ``checkpoint/`` also uses.
+    training-output layout, which the bundled models also use. With no path,
+    load the default released model, or select ``model="no_decorr"``.
+    Bundled weights are already EMA weights and do not require ``use_ema``.
     """
-    ckpt_dir = _resolve_ckpt_dir(path)
+    ckpt_dir = _resolve_ckpt_dir(resolve_checkpoint(path, model=model))
     hp_dict, state_dict = _load_config_and_weights(ckpt_dir, use_ema=use_ema)
 
     class Monroe(torch.nn.Module):
